@@ -5,53 +5,37 @@ MYNUM="7200210789"
 #Way2sms password
 PASS="W9823A"
 
-if [ -z "$MYNUM" ] || [ -z "$PASS" ]; then
-	echo 'You forgot to enter your MYNUM and PASS'
-	exit 1
-fi
-
-INIT=$(curl -is --data "username=$MYNUM&password=$PASS" http://site24.way2sms.com/Login1.action)
-CHECK=$(echo $INIT | egrep -o JSESSIONID)
-if [ -z "$CHECK" ]; then
-	echo 'Your Number or Password is wrong :('
-	exit 1
-fi
-FTOKEN=$(echo $INIT | egrep -o A\[0-9\]{2}~\[a-zA-Z0-9.\]\+)
-TOKEN=${FTOKEN:4:37}
-
-if [ -n "$1" ]; then
-	if [ "$1" == "-m" ]; then	
-		MOBILE=$MYNUM
-	else
-		MOBILE=$1
+if find smsmsg.txt > /dev/null 2>&1 ;then
+	if [ -z "$MYNUM" ] || [ -z "$PASS" ]; then
+		echo 'You forgot to enter your MYNUM and PASS'
+		exit 1
 	fi
-else
-	echo -n 'MOBILE: '
-	read MOBILE
-fi	
-
-MOB='^[0-9]{10}$'
-
-if [[ $MOBILE =~ $MOB  ]]; then
-	if [ -n "$2" ]; then
-		MESSAGE=$1
-	else
-		echo 'Your MESSAGE! (press control+d to exit stdin)'
-		tee > .MESSAGE
-		CHARCNT=$(cat .MESSAGE | wc -c)
+	INIT=$(curl -is --data "username=$MYNUM&password=$PASS" http://site24.way2sms.com/Login1.action)
+	CHECK=$(echo $INIT | egrep -o JSESSIONID)
+	if [ -z "$CHECK" ]; then
+		echo 'Your Number or Password is wrong :('
+		exit 1
+	fi
+	FTOKEN=$(echo $INIT | egrep -o A\[0-9\]{2}~\[a-zA-Z0-9.\]\+)
+	TOKEN=${FTOKEN:4:37}
+	MOBILE=$(head -n 1 smsmsg.txt)
+	MOB='^[0-9]{10}$'
+	if [[ $MOBILE =~ $MOB  ]]; then
+		MESSAGE=$(tail -n $(echo "$(cat smsmsg.txt | wc -l)-1" | bc) smsmsg.txt)
+		CHARCNT=$(echo $MESSAGE | wc -c)
 		WHITESP=$(echo "141 - $CHARCNT" | bc)
-		head -c $WHITESP /dev/zero | tr '\0' ' ' >> .MESSAGE
-		MESSAGE=$(cat .MESSAGE)
-		rm .MESSAGE
-	fi
-	RESP=$(curl -is -b "JSESSIONID=$FTOKEN" --data "ssaction=ss&Token=$TOKEN&mobile=$MOBILE&message=$MESSAGE&msgLen=0" http://site24.way2sms.com/smstoss.action)
-	STAT=$(echo $RESP | egrep -o $TOKEN)
-	if [ "$STAT" == "$TOKEN" ]; then
-		echo 'Sent!'
+		MESSAGE=$MESSAGE$(head -c $WHITESP /dev/zero | tr '\0' ' ')
+		RESP=$(curl -is -b "JSESSIONID=$FTOKEN" --data "ssaction=ss&Token=$TOKEN&mobile=$MOBILE&message=$MESSAGE&msgLen=0" http://site24.way2sms.com/smstoss.action)
+		STAT=$(echo $RESP | egrep -o $TOKEN)
+		if [ "$STAT" == "$TOKEN" ]; then
+			echo 'Sent!'
+		else
+			echo 'Failed!'
+		fi
 	else
-		echo 'Failed!'
+		echo 'Enter a proper mobile number!'
 	fi
 else
-	echo 'Enter a proper mobile number!'
+	echo 'smsmsg.txt not found!'
 fi
 exit 0
